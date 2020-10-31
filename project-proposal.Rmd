@@ -1,0 +1,12 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Group 3: Project Proposal
+
+Our group wishes to understand the external factors related to political party affiilation, and to understand how well we can predict political party affiliation by using a combination of the modeling techniques learned in class. 
+
