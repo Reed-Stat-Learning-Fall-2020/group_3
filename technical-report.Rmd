@@ -1,35 +1,27 @@
 ---
-title: "technical report"
-author: "Maggie Slein"
-date: "11/17/2020"
+title: "Technical Report"
+author: "Shisham Adhikari, Maggie Slein, Grayson White"
+bibliography: references.bib
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+theme_set(theme_bw())
 ```
 
 # Data (and data cleaning)
 
-## Loading the GSS dataset
+## The GSS dataset
 
-Note: Do not run this chunk. Only needed to initially pull the data from the GSS database. We have now saved this as `gss_orig.rda` and it is loaded by `load("gss_orig.rda")` in the chunk after this.
-```{r eval = FALSE}
-temp <- tempfile()
-download.file("https://gss.norc.org/documents/stata/GSS_stata.zip",temp)
-
-gss_orig <- haven::read_dta(unz(temp, filename = "GSS7218_R3.DTA")) %>%
-  haven::as_factor()
-unlink(temp)
-
-save(gss_orig, file = "gss_orig.rda")
-```
+(Info about the GSS)
 
 ## Filtering
 
-Note: Most of this filtering was done for the `infer` package `gss` dataset and can be attributed to authors of that package. We have included more rows and columns than that package, however, much initial tidying and subsetting can be attributed to them. (Make sure to cite this in the final document)
-```{r}
-library(dplyr)
+Most of this filtering was done for the `infer` package `gss` dataset and can be attributed to authors of that package. We have included more rows and columns than that package, however, much initial tidying and subsetting can be attributed to them [@infer].
+```{r gss_filter, message = FALSE}
+load("gss/gss_orig.rda")
 gss_subset <- gss_orig %>%
   filter(!stringr::str_detect(sample, "blk oversamp")) %>% # this is for weighting
   select(
@@ -87,8 +79,6 @@ gss_subset <- gss_orig %>%
   filter(year >= 2000) %>%
   filter(partyid %in% c("dem", "rep")) %>%
   drop_na()
-
-# save(gss_subset, file = "gss_subset.rda") # only run if need to save over the subset data. (Adding a column, or something)
 ```
 
 Given our goal to understand which factors influence party affiliation in the US, we selected year (year of the election), age (age of voter at election), college degree (degree or no degree), partyid (democrat or republican), *hompop* (what does this represent), *hours=hrs1* (what does this represent), income (what are the bounds of the predictors--are there groups), class (?), finrela (?), wrkgovt(?), marital(?), educ (?), race (?), income16(?), weight = wtssall (?)
@@ -127,36 +117,46 @@ summary(party_afill)
 
 ```{r}
 #histograms 
-ggplot(gss_subset, aes(x=partyid))+
-  geom_histogram(stat="count")
+ggplot(gss_subset, aes(x = partyid)) +
+  geom_histogram(stat = "count")
 
 #boxplot
-ggplot(gss_subset, aes(x=partyid))+
+ggplot(gss_subset, aes(x = partyid)) +
   geom_boxplot()
 
 #pairwise scatterplots
-library(GGally)
-g2<-ggpairs(gss_subset,
-lower = list(continuous = wrap("points", alpha = 0.3, size=0.1)),
-upper = list(combo = wrap("box_no_facet", alpha=0.25, outlier.size = .25),
-continuous = wrap("cor", size=2)))
-g2
+# library(GGally)
+# g2<-ggpairs(gss_subset %>% dplyr::select(-educ),
+# lower = list(continuous = wrap("points", alpha = 0.3, size=0.1)),
+# upper = list(combo = wrap("box_no_facet", alpha=0.25, outlier.size = .25),
+# continuous = wrap("cor", size=2)))
+# g2
 
 #plotting randomly selected predictors against party affiliation 
-ggplot(gss_subset, aes(x=age, y=partyid, color=partyid))+
-  geom_boxplot(alpha=0.3)+
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplot(gss_subset, aes(x = age,
+                       y = partyid,
+                       color = partyid)) +
+  geom_boxplot(alpha = 0.3) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_color_manual(values = c("steelblue", "tomato"))
 
-ggplot(gss_subset, aes(x=income, y=partyid))+
-  geom_jitter(alpha=0.5)+
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplot(gss_subset, aes(x = income,
+                       y = partyid))+
+  geom_jitter(alpha = 0.5)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-ggplot(gss_subset, aes(x=class, y=partyid, color=partyid))+
-  geom_jitter(alpha=0.3)+
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplot(gss_subset, aes(x = class,
+                       y = partyid,
+                       color = partyid)) +
+  geom_jitter(alpha = 0.3) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_color_manual(values = c("steelblue", "tomato"))
 
-ggplot(gss_subset, aes(x=hours, y=partyid, color=partyid))+
-  geom_boxplot(alpha=0.3)+
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplot(gss_subset, aes(x = hours,
+                       y = partyid,
+                       color = partyid)) +
+  geom_boxplot(alpha = 0.3)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_color_manual(values = c("steelblue", "tomato"))
 ```
 
