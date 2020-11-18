@@ -15,14 +15,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Note: Do not run this chunk. Only needed to initially pull the data from the GSS database. We have now saved this as `gss_orig.rda` and it is loaded by `load("gss_orig.rda")` in the chunk after this.
 ```{r eval = FALSE}
-#temp <- tempfile()
-#download.file("https://gss.norc.org/documents/stata/GSS_stata.zip",temp)
+temp <- tempfile()
+download.file("https://gss.norc.org/documents/stata/GSS_stata.zip",temp)
 
-#gss_orig <- haven::read_dta(unz(temp, filename = "GSS7218_R3.DTA")) %>%
-  #haven::as_factor()
-#unlink(temp)
+gss_orig <- haven::read_dta(unz(temp, filename = "GSS7218_R3.DTA")) %>%
+  haven::as_factor()
+unlink(temp)
 
-#save(gss_orig, file = "gss_orig.rda")
+save(gss_orig, file = "gss_orig.rda")
 ```
 
 ## Filtering
@@ -30,7 +30,6 @@ Note: Do not run this chunk. Only needed to initially pull the data from the GSS
 Note: Most of this filtering was done for the `infer` package `gss` dataset and can be attributed to authors of that package. We have included more rows and columns than that package, however, much initial tidying and subsetting can be attributed to them. (Make sure to cite this in the final document)
 ```{r}
 library(dplyr)
-load("gss_orig.rda")
 gss_subset <- gss_orig %>%
   filter(!stringr::str_detect(sample, "blk oversamp")) %>% # this is for weighting
   select(
