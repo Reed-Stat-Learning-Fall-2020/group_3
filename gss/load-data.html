@@ -213,9 +213,15 @@ color: #d14;
 a.anchor-section {margin-left: 10px; visibility: hidden; color: inherit;}
 a.anchor-section::before {content: '#';}
 .hasAnchor:hover a.anchor-section {visibility: visible;}
+ul > li > .anchor-section {display: none;}
 </style>
 <script>// Anchor sections v1.0 written by Atsushi Yasumoto on Oct 3rd, 2020.
 document.addEventListener('DOMContentLoaded', function() {
+  // Do nothing if AnchorJS is used
+  if (typeof window.anchors === 'object' && anchors.hasOwnProperty('hasAnchorJSLink')) {
+    return;
+  }
+
   const h = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
 
   // Do nothing if sections are already anchored
@@ -232,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Add anchors
   h.forEach(function(x) {
     const id = x.id || section_id(x.parentElement);
-    if (id === '') {
+    if (id === '' || x.matches(':empty')) {
       return null;
     }
     let anchor = document.createElement('a');
@@ -251,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
   div.column{display: inline-block; vertical-align: top; width: 50%;}
   div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
   ul.task-list{list-style: none;}
-      </style>
+    </style>
 
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
@@ -415,12 +421,10 @@ summary {
 
 <div id="loading-the-gss-dataset" class="section level2">
 <h2>Loading the GSS dataset</h2>
-<pre class="r"><code># pull gss data
-temp &lt;- tempfile()
+<p>Note: Do not run this chunk. Only needed to initially pull the data from the GSS database. We have now saved this as <code>gss_orig.rda</code> and it is loaded by <code>load(&quot;gss_orig.rda&quot;)</code> in the chunk after this.</p>
+<pre class="r"><code>temp &lt;- tempfile()
 download.file(&quot;https://gss.norc.org/documents/stata/GSS_stata.zip&quot;,temp)
 
-# if this next line errors with &quot;No such file or directory&quot;, try
-# incrementing the number after &quot;_R&quot;
 gss_orig &lt;- haven::read_dta(unz(temp, filename = &quot;GSS7218_R3.DTA&quot;)) %&gt;%
   haven::as_factor()
 unlink(temp)
@@ -429,50 +433,68 @@ save(gss_orig, file = &quot;gss_orig.rda&quot;)</code></pre>
 </div>
 <div id="filtering" class="section level2">
 <h2>Filtering</h2>
+<p>Note: Most of this filtering was done for the <code>infer</code> package <code>gss</code> dataset and can be attributed to authors of that package. We have included more rows and columns than that package, however, much initial tidying and subsetting can be attributed to them. (Make sure to cite this in the final document)</p>
 <pre class="r"><code>load(&quot;gss_orig.rda&quot;)
 
-
-# Much of this script is from the {infer} package subsetting of the gss dataset
 gss_subset &lt;- gss_orig %&gt;%
   filter(!stringr::str_detect(sample, &quot;blk oversamp&quot;)) %&gt;% # this is for weighting
-  select(year, age, sex, college = degree, partyid, hompop, 
-         hours = hrs1, income, class, finrela, weight = wtssall) %&gt;%
-  mutate_if(is.factor, ~fct_collapse(., NULL = c(&quot;IAP&quot;, &quot;NA&quot;, &quot;iap&quot;, &quot;na&quot;))) %&gt;%
-  mutate(age = age %&gt;%
-           fct_recode(&quot;89&quot; = &quot;89 or older&quot;,
-                      NULL = &quot;DK&quot;) %&gt;% # truncated at 89
-           as.character() %&gt;%
-           as.numeric(),
-         hompop = hompop %&gt;%
-           fct_collapse(NULL = c(&quot;DK&quot;)) %&gt;%
-           as.character() %&gt;%
-           as.numeric(),
-         hours = hours %&gt;%
-           fct_recode(&quot;89&quot; = &quot;89+ hrs&quot;,
-                      NULL = &quot;DK&quot;) %&gt;% # truncated at 89
-           as.character() %&gt;%
-           as.numeric(),
-         weight = weight %&gt;%
-           as.character() %&gt;%
-           as.numeric(),
-         partyid = fct_collapse(partyid, 
-           dem = c(&quot;strong democrat&quot;, &quot;not str democrat&quot;),
-           rep = c(&quot;strong republican&quot;, &quot;not str republican&quot;),
-           ind = c(&quot;ind,near dem&quot;, &quot;independent&quot;, &quot;ind,near rep&quot;),
-           other = &quot;other party&quot;
-         ),
-         income = factor(income, ordered = TRUE),
-         college = fct_collapse(college,
-           degree = c(&quot;junior college&quot;, &quot;bachelor&quot;, &quot;graduate&quot;),
-           &quot;no degree&quot;  = c(&quot;lt high school&quot;, &quot;high school&quot;),
-           NULL = &quot;dk&quot; # no dks show up in the data, so drop this level
-         )
-         ) %&gt;%
+  select(
+    year,
+    age,
+    sex,
+    college = degree,
+    partyid,
+    hompop,
+    hours = hrs1,
+    income,
+    class,
+    finrela,
+    wrkgovt,
+    marital,
+    educ,
+    race,
+    incom16,
+    weight = wtssall
+  ) %&gt;%
+  mutate_if(is.factor, ~ fct_collapse(., NULL = c(&quot;IAP&quot;, &quot;NA&quot;, &quot;iap&quot;, &quot;na&quot;))) %&gt;%
+  mutate(
+    age = age %&gt;%
+      fct_recode(&quot;89&quot; = &quot;89 or older&quot;,
+                 NULL = &quot;DK&quot;) %&gt;%
+      as.character() %&gt;%
+      as.numeric(),
+    hompop = hompop %&gt;%
+      fct_collapse(NULL = c(&quot;DK&quot;)) %&gt;%
+      as.character() %&gt;%
+      as.numeric(),
+    hours = hours %&gt;%
+      fct_recode(&quot;89&quot; = &quot;89+ hrs&quot;,
+                 NULL = &quot;DK&quot;) %&gt;%
+      as.character() %&gt;%
+      as.numeric(),
+    weight = weight %&gt;%
+      as.character() %&gt;%
+      as.numeric(),
+    partyid = fct_collapse(
+      partyid,
+      dem = c(&quot;strong democrat&quot;, &quot;not str democrat&quot;),
+      rep = c(&quot;strong republican&quot;, &quot;not str republican&quot;),
+      ind = c(&quot;ind,near dem&quot;, &quot;independent&quot;, &quot;ind,near rep&quot;),
+      other = &quot;other party&quot;
+    ),
+    income = factor(income, ordered = TRUE),
+    college = fct_collapse(
+      college,
+      degree = c(&quot;junior college&quot;, &quot;bachelor&quot;, &quot;graduate&quot;),
+      &quot;no degree&quot;  = c(&quot;lt high school&quot;, &quot;high school&quot;),
+      NULL = &quot;dk&quot;
+    )
+  ) %&gt;%
   filter(year &gt;= 2000) %&gt;%
   filter(partyid %in% c(&quot;dem&quot;, &quot;rep&quot;)) %&gt;%
   drop_na()
 
-# save(gss_subset, file = &quot;gss_subset.rda&quot;)</code></pre>
+# save(gss_subset, file = &quot;gss_subset.rda&quot;) # only run if need to save over the subset data. (Adding a column, or something)</code></pre>
 </div>
 
 
