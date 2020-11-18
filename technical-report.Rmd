@@ -120,10 +120,6 @@ summary(party_afill)
 ggplot(gss_subset, aes(x = partyid)) +
   geom_histogram(stat = "count")
 
-#boxplot
-ggplot(gss_subset, aes(x = partyid)) +
-  geom_boxplot()
-
 #pairwise scatterplots
 # library(GGally)
 # g2<-ggpairs(gss_subset %>% dplyr::select(-educ),
