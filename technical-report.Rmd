@@ -137,9 +137,11 @@ ggplot(gss_subset, aes(x = age,
   scale_color_manual(values = c("steelblue", "tomato"))
 
 ggplot(gss_subset, aes(x = income,
-                       y = partyid))+
+                       y = partyid, 
+                       color=partyid))+
   geom_jitter(alpha = 0.5)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_color_manual(values = c("steelblue", "tomato"))
 
 ggplot(gss_subset, aes(x = class,
                        y = partyid,
@@ -176,7 +178,6 @@ ggplot(gss_subset, aes(x = marital,
   geom_point(alpha = 0.3)+
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_color_manual(values = c("steelblue", "tomato"))
-
 
 ```
 
