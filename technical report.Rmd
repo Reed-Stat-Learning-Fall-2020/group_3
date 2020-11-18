@@ -12,8 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Data 
 
 ```{r}
-load("~/group_3/gss/gss_subset.rda")
-
+#load("~/group_3/gss/gss_subset.rda")
 ```
 
 
