@@ -1,0 +1,27 @@
+---
+title: "technical report"
+author: "Maggie Slein"
+date: "11/17/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data 
+
+```{r}
+load("~/group_3/gss/gss_subset.rda")
+
+```
+
+
+# Exploratory Data Analysis
+
+A presentation of graphical and numerical summaries of the data (along with a discussion of their relevance to modeling assumptions and further analysis), a description of the statistical methods used to analyze your data, and diagnostics of the appropriateness of any models or inference procedures you will apply in the Results section.
+
+```{r}
+
+```
+
