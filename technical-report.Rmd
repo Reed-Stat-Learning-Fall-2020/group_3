@@ -81,7 +81,7 @@ gss_subset <- gss_orig %>%
   drop_na()
 ```
 
-Given our goal to understand which factors influence party affiliation in the US, we selected year (year of the election), age (age of voter at election), college degree (degree or no degree), partyid (democrat or republican), *hompop* (what does this represent), *hours=hrs1* (what does this represent), income (what are the bounds of the predictors--are there groups), class (?), finrela (?), wrkgovt(?), marital(?), educ (?), race (?), income16(?), weight = wtssall (?)
+Given our goal to understand which factors influence party affiliation in the US, we selected `year` (year of the election), `age` (age of time of survey), `college` (degree or no degree), `partyid` (democrat or republican), `hompop` (number of people in the respondent's household), `hours` (number of hours worked in the last week), `income` (total family income, categorical), `class` (socioeconomic class as described by respondent), `finrela` (respondent's opinion on family's income level), `wrkgovt` (whether or not the respondent works for the government), `marital` (respondent's martial status), `educ` (highest year of school completed), `race` (race of respondent), `income16` (respondent's family income at the age of 16), and `weight` (survey weight). 
 
 
 Why did we chose these from the dataset? Why did we exclude other variables? What are the possible implications of this?
@@ -172,12 +172,23 @@ ggplot(gss_subset, aes(x = marital,
   scale_color_manual(values = c("steelblue", "tomato"))
 
 
-ggplot(gss_subset, aes(x = marital,
-                       y = age,
-                       color = partyid)) +
-  geom_point(alpha = 0.3)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+reps <- gss_subset %>%
+  filter(partyid == "rep")
+dems <- gss_subset %>%
+  filter(partyid == "dem")
+ggplot() +
+  geom_point(reps,
+             mapping = aes(x = marital,
+                           y = age,
+                           color = partyid),
+             position = position_nudge(x = -0.1),
+             alpha = 0.5) +
+  geom_point(dems,
+             mapping = aes(x = marital,
+                           y = age,
+                           color = partyid),
+             position = position_nudge(x = 0.1),
+             alpha = 0.5) +
   scale_color_manual(values = c("steelblue", "tomato"))
-
 ```
 
