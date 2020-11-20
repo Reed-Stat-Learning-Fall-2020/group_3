@@ -11,37 +11,21 @@ library(tidyverse)
 theme_set(theme_bw())
 ```
 
-# Data (and data cleaning)
+# Data 
 
 ## The GSS dataset
 
-(Info about the GSS)
+The general social survey (GSS) is a massive survey conducted of people within the United States since 1972. The GSS aims to get a representative sample of people in the United States and to understand information about them and how they feel about social and political issues. We have chosen some key variables collected from this survey, along with participants from 2000 or more recent, in order for us to attempt to classify political affiliation of participants. Our subset of the GSS dataset contains 5,800 rows, 16 columns, and 0 NA's.  
 
 ## Filtering
 
-Most of this filtering was done for the `infer` package `gss` dataset and can be attributed to authors of that package. We have included more rows and columns than that package, however, much initial tidying and subsetting can be attributed to them [@infer].
-```{r gss_filter, message = FALSE}
+Most of this filtering was done for the `infer` package `gss` dataset and can be attributed to authors of that package. We have included more rows and columns than that package, however, much initial tidying and subsetting can be attributed to them [@infer]. Below is the code adapted from the `infer` package to attain our dataset, `gss_subset`:
+```{r gss_filter, message = FALSE, eval = FALSE}
 load("gss/gss_orig.rda")
 gss_subset <- gss_orig %>%
   filter(!stringr::str_detect(sample, "blk oversamp")) %>% # this is for weighting
-  select(
-    year,
-    age,
-    sex,
-    college = degree,
-    partyid,
-    hompop,
-    hours = hrs1,
-    income,
-    class,
-    finrela,
-    wrkgovt,
-    marital,
-    educ,
-    race,
-    incom16,
-    weight = wtssall
-  ) %>%
+  select(year, age, sex, college = degree, partyid, hompop, hours = hrs1, income,
+         class, finrela, wrkgovt, marital, educ, race, incom16, weight = wtssall) %>%
   mutate_if(is.factor, ~ fct_collapse(., NULL = c("IAP", "NA", "iap", "na"))) %>%
   mutate(
     age = age %>%
@@ -80,15 +64,14 @@ gss_subset <- gss_orig %>%
   filter(partyid %in% c("dem", "rep")) %>%
   drop_na()
 ```
+```{r actually_load_gss, echo = FALSE}
+# run this chunk to quickly load the gss subset without having to re-run the filtering
+load("gss/gss_subset.rda")
+```
 
 Given our goal to understand which factors influence party affiliation in the US, we selected `year` (year of the election), `age` (age of time of survey), `college` (degree or no degree), `partyid` (democrat or republican), `hompop` (number of people in the respondent's household), `hours` (number of hours worked in the last week), `income` (total family income, categorical), `class` (socioeconomic class as described by respondent), `finrela` (respondent's opinion on family's income level), `wrkgovt` (whether or not the respondent works for the government), `marital` (respondent's martial status), `educ` (highest year of school completed), `race` (race of respondent), `income16` (respondent's family income at the age of 16), and `weight` (survey weight). 
 
-
-Why did we chose these from the dataset? Why did we exclude other variables? What are the possible implications of this?
-
-
-
-
+We made some choices while filtering the dataset which will effect the final results of our models. First of all, we have filtered all observations which do not state that their political affiliation was either democrat or republican. We are most interested in answering the question of whether or not we can classify between these parties rather than considering much smaller third parties. Also, we have filtered all observations with any NA's. We chose to do this for ease of analysis and because many of the models we use will not consider a row that includes NA's in any of the columns being used for the model.  
 
 # Exploratory Data Analysis
 
