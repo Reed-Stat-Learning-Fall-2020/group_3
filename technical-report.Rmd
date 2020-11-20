@@ -99,11 +99,7 @@ gss_subset %>%
   knitr::kable()
 ```
 
-Below are plots that show the distribution of political party affiliation between democrat and republican as well as the distrutbution of all the predictors included in this dataset.
-
-Most of our predictors appear to normally distributed, except for income, hompop, and weight. None of the predictors appear to have a strong relationship with political party affiliation, which is not surprising given that there are roughly the same amount of democrats and republicans in each state. 
-
-First, we can look at the distribution of democrats and republications in our dataset in counts:
+As we first explore the dataset, we can look at the distribution of democrats and republications in our dataset in counts:
 ```{r partyid-dist, echo = FALSE}
 ggplot(gss_subset, aes(x = partyid)) +
   geom_bar(fill = c("steelblue", "tomato"),
@@ -114,7 +110,7 @@ ggplot(gss_subset, aes(x = partyid)) +
 There appears to me more democrats than republicans represented in this dataset, which could be because democrats are more likely to participate in this survey, or it could be that the way we selected our data systemically oversampled democrats. Notably from this, it is the case that our the weights associated with our sample of the GSS dataset would not be the same as the weights that the GSS uses for the dataset, so the `weight` variable should be ignored entirely. 
 
 Now, we can examine some of our predictor variables with our response, `partyid`, to see the relationships there are between variables. First, we see in this side-by-side boxplot with the means plotted on top that republicans tend to be older on average:
-```{r age-plot, echo = FALSE}
+```{r age-plot, echo = FALSE, warning = FALSE, message = FALSE}
 ggplot(gss_subset, aes(x = age,
                        y = partyid,
                        color = partyid)) +
@@ -176,30 +172,35 @@ ggplot(gss_subset, aes(x = hours,
   stat_summary(fun = mean, size = 0.25)
 ```
 
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-
-```{r, echo = FALSE}
+It is also relevant to look at other variables such as race, marital status, and education as factors related to political party affiliation. Most notably, there is a much larger proportion of white republicans than democrats. We can see this in the first plot in the following plots: 
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
 ggplot(gss_subset, aes(x = race,
                        y = partyid,
                        color = partyid)) +
-  geom_jitter(alpha = 0.3)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_color_manual(values = c("steelblue", "tomato"))
+  geom_jitter(alpha = 0.3) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  scale_color_manual(values = c("steelblue", "tomato")) +
+  labs(
+    title = "Political Affiliation by Race",
+    x = "Race",
+    y = "Political Affiliation",
+    color = "Political Affiliation"
+  )
 
 ggplot(gss_subset, aes(x = marital,
                        y = partyid,
                        color = partyid)) +
-  geom_jitter(alpha = 0.3)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_color_manual(values = c("steelblue", "tomato"))
+  geom_jitter(alpha = 0.3) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  scale_color_manual(values = c("steelblue", "tomato")) +
+  labs(
+    title = "Political Affiliation by Martial Status",
+    x = "Marital Status",
+    y = "Political Affiliation",
+    color = "Political Affiliation"
+  )
 
 
 reps <- gss_subset %>%
@@ -219,14 +220,33 @@ ggplot() +
                            color = partyid),
              position = position_nudge(x = 0.1),
              alpha = 0.5) +
-  scale_color_manual(values = c("steelblue", "tomato"))
+  scale_color_manual(values = c("steelblue", "tomato")) +
+  theme(legend.position = "bottom") +
+  labs(
+    title = "Marital Status by Age",
+    subtitle = "Colored by political affiliation",
+    x = "Marital Status",
+    y = "Age",
+    color = "Political Affiliation"
+  )
 
 ggplot(gss_subset, aes(x = as.numeric(educ),
                        y = partyid,
                        color = partyid)) +
   geom_boxplot(alpha = 0.3)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_color_manual(values = c("steelblue", "tomato"))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  scale_color_manual(values = c("steelblue", "tomato")) +
+  labs(
+    title = "Political Affiliation by Years of Education",
+    subtitle = "Average plotted with point on plot",
+    x = "Educational Years Completed",
+    y = "Political Affiliation",
+    color = "Political Affiliation"
+  ) +
+  stat_summary(fun = mean, size = 0.25)
 ```
+
+After completing these exploratory analyses, it is clear that while there are some weak relationships within many variables, we will likely need all of these variables to make models which have good predictive power. None of the predictors appear to have an extremely strong relationship with political party affiliation, and so we will need to use many of them for our models to perform well. 
 
 # References
