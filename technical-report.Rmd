@@ -249,4 +249,34 @@ ggplot(gss_subset, aes(x = as.numeric(educ),
 
 After completing these exploratory analyses, it is clear that while there are some weak relationships within many variables, we will likely need all of these variables to make models which have good predictive power. None of the predictors appear to have an extremely strong relationship with political party affiliation, and so we will need to use many of them for our models to perform well. 
 
+We also examined two classification model methods for accuracy in predicting partyid based on some of our 16 predictors. Linear disriminany analysis (LDA) appeare to perform better job correctly classifying Democrats than Republicans based on these 6 predictors, as there was an equal amount of Republicans incorrectly predicted to those correctly predicted. Our logistic regression model with all 16 predictors also appears to better classify Democrats than Republicans, but not by much, with an overall training error rate of about 18%. These results suggest that the current classification models we have used throughout this course may not be successful in predicting partyid with high accuracy on their own. We hope to leverage these methods through model stacking in our Methods and Results section.
+```{r}
+#taking a look at how LDA could perform on our dataset with just a couple of variables 
+library(MASS)
+set.seed(2020)
+mlda <- lda(partyid ~ race + age + year + hompop + income + wrkgovt, data = gss_subset)
+mlda_pred <- predict(mlda)
+conf_mlda <- table(mlda_pred$class,gss_subset$partyid)
+conf_mlda
+
+#taking a look at how logistic regression could perform on our dataset with just a couple of variables and then full model 
+simple_logreg<-glm(partyid ~ race + age + year + hompop + income + wrkgovt, data = gss_subset, family= "binomial")
+summary(simple_logreg)
+
+full_logreg<-glm(partyid ~ ., data = gss_subset, family= "binomial")
+summary(full_logreg)
+
+probs<-predict(full_logreg, gss_subset, type = "response")
+preds<-ifelse(probs >=.5, 1, 0)
+conf_log <- table(preds, gss_subset$partyid)
+conf_log
+
+n <- length(gss_subset$partyid)
+false_pos <- conf_log[1,2]
+false_neg <- conf_log[2,1]
+error <- 1/n *(false_pos + false_neg)
+error
+```
+
+
 # References
