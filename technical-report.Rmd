@@ -28,6 +28,8 @@ For the fifth time in US history, the 2016 race between businessman Donald J. Tr
 
 Previous models have utilized one statistical learning method ()
 
+Add in background on model stacking
+
 
 Research Question: *How can we use a combination of models to predict political party affiliation using small sample sizes?*
 
