@@ -7,6 +7,33 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidymodels)
 library(stacks)
+load("gss/gss_subset.rda")
 ```
 
 ## Using `tidymodels`
+
+Let's first split our data into training and testing datasets:
+```{r}
+set.seed(1)
+split <- initial_split(data = gss_subset, prop = 3/4)
+gss_train <- training(split)
+gss_test <- testing(split)
+```
+
+Now, let's make our `recipe`:
+```{r}
+gss_recipe <- recipe(partyid ~ ., data = gss_train) %>%
+  step_rm(year) %>%
+  step_dummy(all_nominal(), -all_outcomes())
+
+gss_recipe
+```
+
+Now, we can make our `workflow()`:
+```{r}
+gss_workflow <- workflow() %>%
+  add_recipe(gss_recipe)
+```
+
+
+
