@@ -7,7 +7,9 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidymodels)
 library(stacks)
+library(discrim)
 load("gss/gss_subset.rda")
+gss_subset$partyid <- factor(gss_subset$partyid)
 ```
 
 ## Using `tidymodels`
@@ -20,20 +22,114 @@ gss_train <- training(split)
 gss_test <- testing(split)
 ```
 
-Now, let's make our `recipe`:
+Next, let's use 10-fold cross validation:
 ```{r}
+folds <- rsample::vfold_cv(gss_train, v = 10)
+```
+
+Now, let's make our `recipe()` and `workflow()` that will be used for each of our models:
+```{r}
+# Create the recipe
 gss_recipe <- recipe(partyid ~ ., data = gss_train) %>%
   step_rm(year) %>%
-  step_dummy(all_nominal(), -all_outcomes())
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_predictors())
 
-gss_recipe
-```
-
-Now, we can make our `workflow()`:
-```{r}
+# Create the workflow
 gss_workflow <- workflow() %>%
   add_recipe(gss_recipe)
+
+# View the workflow
+gss_workflow
 ```
+
+To asses our models, we will use the proportion of correct predictions made by each model. We can set this metric to be used easily with `yardstick`:
+```{r}
+# metric <- metric_set(precision)
+```
+
+Now, we can begin to specify our models for our model stack:
+```{r}
+# Logistic regression specification
+logreg_spec <- logistic_reg(penalty = tune(), mixture = 1) %>%
+  set_engine("glmnet")
+# add grid 
+lr_reg_grid <- tibble(penalty = 10^seq(-4, -1, length.out = 30))
+# Add logistic regression to workflow
+logreg_workflow <- gss_workflow %>%
+  add_model(logreg_spec)
+# Fit with our cross validation
+set.seed(13)
+logreg_resamples <- tune_grid(
+  logreg_workflow,
+  resamples = folds,
+  grid = lr_reg_grid,
+  # metrics = metric,
+  control = control_stack_grid()
+)
+
+# LDA specification
+lda_spec <- discrim_linear(penalty = tune()) %>%
+  set_engine("MASS")
+# Add LDA to workflow
+lda_workflow <- gss_workflow %>%
+  add_model(lda_spec)
+# Fit with our cross validation
+set.seed(13)
+lda_resamples <- fit_resamples(
+  lda_workflow,
+  resamples = folds,
+  # metrics = metric,
+  control = control_stack_grid()
+)
+```
+
+Now, we can stack these models:
+```{r}
+gss_stack <- stacks() %>%
+  add_candidates(logreg_resamples) %>%
+  add_candidates(lda_resamples) %>%
+  blend_predictions() %>%
+  fit_members()
+
+gss_preds <- 
+  gss_test %>%
+  dplyr::select(partyid) %>%
+  bind_cols(
+    predict(
+      gss_stack,
+      gss_test,
+      members = TRUE
+    )
+  )
+
+colnames(gss_preds) %>%
+  map_dfr(
+    .f = accuracy, 
+    truth = partyid, 
+    data = gss_preds
+  ) %>%
+  mutate(member = colnames(gss_preds))
+```
+
+
+
+
+
+For a base-line, let's fit a simple logistic regression:
+```{r eval = F}
+lr_baseline <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(partyid ~ ., data = gss_train)
+
+lr_preds <- lr_baseline %>%
+  predict(new_data = gss_test) %>%
+  bind_cols(gss_test %>% select(partyid))
+
+logreg_preds %>%
+  precision(partyid, .pred_class)
+```
+
 
 
 
