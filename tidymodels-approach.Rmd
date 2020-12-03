@@ -22,9 +22,9 @@ gss_train <- training(split)
 gss_test <- testing(split)
 ```
 
-Next, let's use 10-fold cross validation:
+Next, let's use 5-fold cross validation:
 ```{r}
-folds <- rsample::vfold_cv(gss_train, v = 10)
+folds <- rsample::vfold_cv(gss_train, v = 5)
 ```
 
 Now, let's make our `recipe()` and `workflow()` that will be used for each of our models:
@@ -43,14 +43,23 @@ gss_workflow <- workflow() %>%
 gss_workflow
 ```
 
-To asses our models, we will use the proportion of correct predictions made by each model. We can set this metric to be used easily with `yardstick`:
-```{r}
-# metric <- metric_set(precision)
-```
-
 Now, we can begin to specify our models for our model stack:
 ```{r}
-# Logistic regression specification
+# Basic Logistic regression specification
+basic_logreg_spec <- logistic_reg() %>%
+  set_engine("glm")
+# Add logistic regression to workflow
+basic_logreg_workflow <- gss_workflow %>%
+  add_model(basic_logreg_spec)
+# Fit with our cross validation
+set.seed(13)
+basic_logreg_resamples <- fit_resamples(
+  basic_logreg_workflow,
+  resamples = folds,
+  control = control_stack_resamples()
+)
+
+# Penalized Logistic regression specification
 logreg_spec <- logistic_reg(penalty = tune(), mixture = 1) %>%
   set_engine("glmnet")
 # add grid 
@@ -64,32 +73,59 @@ logreg_resamples <- tune_grid(
   logreg_workflow,
   resamples = folds,
   grid = lr_reg_grid,
-  # metrics = metric,
   control = control_stack_grid()
 )
 
 # LDA specification
 lda_spec <- discrim_linear(penalty = tune()) %>%
-  set_engine("MASS")
+  set_engine("mda")
 # Add LDA to workflow
 lda_workflow <- gss_workflow %>%
   add_model(lda_spec)
 # Fit with our cross validation
 set.seed(13)
-lda_resamples <- fit_resamples(
+lda_resamples <- tune_grid(
   lda_workflow,
   resamples = folds,
-  # metrics = metric,
   control = control_stack_grid()
 )
+
+# SVM specification (ooh fancy)
+svm_spec <- svm_rbf(
+    cost = tune(), 
+    rbf_sigma = tune()
+  ) %>%
+  set_engine("kernlab") %>%
+  set_mode("classification")
+
+# WF
+svm_workflow <- 
+  gss_workflow %>% 
+  add_model(svm_spec)
+
+# tuning
+set.seed(13)
+svm_res <- 
+  tune_grid(
+    svm_workflow, 
+    resamples = folds, 
+    grid = 5,
+    control = control_stack_grid()
+  )
 ```
 
 Now, we can stack these models:
 ```{r}
 gss_stack <- stacks() %>%
+  add_candidates(basic_logreg_resamples) %>%
   add_candidates(logreg_resamples) %>%
   add_candidates(lda_resamples) %>%
-  blend_predictions() %>%
+  add_candidates(svm_res)
+
+gss_stack <- gss_stack %>%
+  blend_predictions()
+
+gss_stack <- gss_stack %>%
   fit_members()
 
 gss_preds <- 
@@ -118,16 +154,14 @@ colnames(gss_preds) %>%
 
 For a base-line, let's fit a simple logistic regression:
 ```{r eval = F}
-lr_baseline <- logistic_reg(mode = "classification") %>%
-  set_engine("glm") %>%
-  fit(partyid ~ ., data = gss_train)
+glm_logreg <- glm(partyid ~ ., data = gss_train, family = "binomial")
+probs_logreg <- predict(glm_logreg, gss_test, type = "response")
+preds_logreg <- ifelse(probs_logreg >=.5, 1, 0)
+confusion_logreg <- table(preds_logreg, gss_test$partyid)
+confusion_logreg
 
-lr_preds <- lr_baseline %>%
-  predict(new_data = gss_test) %>%
-  bind_cols(gss_test %>% select(partyid))
-
-logreg_preds %>%
-  precision(partyid, .pred_class)
+accuracy_logreg <- 1 - (confusion_logreg[1,2] + confusion_logreg[2,1]) / nrow(gss_test)
+accuracy_logreg
 ```
 
 
