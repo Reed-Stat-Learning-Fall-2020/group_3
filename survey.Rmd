@@ -1,33 +1,21 @@
 ---
-title: "Untitled"
+title: "Survey"
+author: "Shisham Adhikari"
+date: "12/3/2020"
 output: html_document
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
 First, we can load the data and tidy it: 
 ```{r}
 library(tidyverse)
 load("gss/gss_orig.rda")
-
 gss_survey <- gss_orig %>%
   filter(!stringr::str_detect(sample, "blk oversamp")) %>% # this is for weighting
-  select(
-    year,
-    age,
-    sex,
-    college = degree,
-    partyid,
-    hompop,
-    hours = hrs1,
-    income,
-    class,
-    finrela,
-    wrkgovt,
-    marital,
-    educ,
-    race,
-    incom16,
-    weight = wtssall
-  ) %>%
+  select(vpsu, vstrat, year, age, sex, college = degree, partyid, hompop, hours = hrs1, income, class, finrela, wrkgovt, marital, educ, race, incom16, weight = wtssall) %>%
   mutate_if(is.factor, ~ fct_collapse(., NULL = c("IAP", "NA", "iap", "na"))) %>%
   mutate(
     age = age %>%
@@ -63,14 +51,51 @@ gss_survey <- gss_orig %>%
     )
   ) %>%
   filter(year >= 2000) %>%
-  filter(partyid %in% c("dem", "rep")) 
+  filter(partyid %in% c("dem", "rep")) %>%
+  drop_na()
 ```
 
 
 Now, we can do a logistic regression using weights:
 ```{r}
 library(survey)
-
+gss_design <- 
+    svydesign( 
+        ~ vpsu , 
+        strata = ~ vstrat , 
+        data = gss_survey , 
+        weights = ~ weight , 
+        nest = TRUE 
+    )
 ```
 
+
+Now, we fit the logistic-regression model with the svyglm() function from the survey package.6 A
+slight wrinkle is that we must use the quasibinomial rather than the binomial family to avoid a
+warning about noninteger counts produced by the use of differential sampling weights. 
+
+```{r}
+ options(survey.lonely.psu="certainty")
+glm_result <- 
+    svyglm( 
+        partyid ~ age + sex + college + hompop + hours +
+          income + class + finrela + wrkgovt + marital +
+        educ + race + incom16 + weight, design=gss_design, family=quasibinomial)
+
+summary(glm_result)
+```
+
+Note: The global option,  options(survey.lonely.psu="fail"), makes it an error to have a stratum with a single, non-certainty PSU. Changing it to options(survey.lonely.psu="certainty"), single-PSU stratum makes no contribution to the variance (for multistage sampling it makes no contribution at that level of sampling). This is an alternative to specifying fpc, and is useful to run the regression without error.
+
+```{r}
+probs_survey<-predict(glm_result, gss_survey, type = "response")
+preds_survey<-ifelse(probs >=.5, 1, 0)
+conf_log_survey <- table(preds, gss_survey$partyid)
+conf_log_survey
+n <- length(gss_survey$partyid)
+false_pos_survey <- conf_log[1,2]
+false_neg_survey <- conf_log[2,1]
+error_survey <- 1/n *(false_pos + false_neg)
+error_survey
+```
 
