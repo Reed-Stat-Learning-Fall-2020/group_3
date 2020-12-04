@@ -52,6 +52,7 @@ gss_survey <- gss_orig %>%
   filter(year >= 2000) %>%
   filter(partyid %in% c("dem", "rep")) %>%
   drop_na()
+gss_survey$partyid <- factor(gss_survey$partyid)
 ```
 
 Now, we construct a complex sample survey design. 
@@ -85,15 +86,68 @@ Note: The global option,  options(survey.lonely.psu="fail"), makes it an error t
 
 ```{r}
 probs_survey<-predict(glm_result, gss_survey, type = "response")
-preds_survey<-ifelse(probs >=.5, 1, 0)
-conf_log_survey <- table(preds, gss_survey$partyid)
+preds_survey<-ifelse(probs_survey >=.5, 1, 0)
+conf_log_survey <- table(preds_survey, gss_survey$partyid)
 conf_log_survey
 n <- length(gss_survey$partyid)
-false_pos_survey <- conf_log[1,2]
-false_neg_survey <- conf_log[2,1]
-error_survey <- 1/n *(false_pos + false_neg)
+false_pos_survey <- conf_log_survey[1,2]
+false_neg_survey <- conf_log_survey[2,1]
+error_survey <- 1/n *(false_pos_survey + false_neg_survey)
 error_survey
+1 - error_survey
 ```
-We see that the error rate is 0.1810345 for the logistic regression with weights. 
+We see that the training error rate is `r error_survey` for the logistic regression with weights. 
+
+
+## training and testing 
+
+However, to compare it to the tidymodels approach, we must also perform the same analysis with a training and testing set. We do so with the same initial split used in the tidymodels approach:
+Now, we construct a complex sample survey design. 
+```{r}
+library(tidymodels)
+set.seed(1)
+split <- initial_split(data = gss_survey, prop = 3/4)
+gss_train <- training(split)
+gss_test <- testing(split)
+
+gss_design_train <- 
+    svydesign( 
+        ~ vpsu , 
+        strata = ~ vstrat , 
+        data = gss_train , 
+        weights = ~ weight , 
+        nest = TRUE 
+    )
+```
+
+
+Now, we fit the logistic-regression model with weights using the svyglm() function from the survey package. A slight wrinkle is that we must use the quasibinomial rather than the binomial family to avoid a warning about noninteger counts produced by the use of differential sampling weights. 
+
+```{r}
+ options(survey.lonely.psu="certainty")
+glm_result_train <- 
+    svyglm( 
+        partyid ~ age + sex + college + hompop + hours +
+          income + class + finrela + wrkgovt + marital +
+        educ + race + incom16 + weight, design=gss_design, family=quasibinomial)
+
+summary(glm_result_train)
+```
+
+Note: The global option,  options(survey.lonely.psu="fail"), makes it an error to have a stratum with a single, non-certainty PSU. Changing it to options(survey.lonely.psu="certainty"), single-PSU stratum makes no contribution to the variance (for multistage sampling it makes no contribution at that level of sampling). This is an alternative to specifying fpc, and is useful to run the regression without error.
+
+```{r}
+probs_survey_test <- predict(glm_result_train, gss_test, type = "response")
+preds_survey_test <- ifelse(probs_survey_test >=.5, 1, 0)
+conf_log_survey_test <- table(preds_survey_test, gss_test$partyid)
+conf_log_survey_test
+n_test <- length(gss_test$partyid)
+false_pos_survey_test <- conf_log_survey_test[1,2]
+false_neg_survey_test <- conf_log_survey_test[2,1]
+error_survey_test <- 1/n_test *(false_pos_survey_test + false_neg_survey_test)
+error_survey_test
+1 - error_survey_test
+```
+We see that the testing error rate is `r error_survey_test` for the logistic regression with weights and the amount correctly predicted is `r 1 - error_survey_test`. 
 
 
