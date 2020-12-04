@@ -44,30 +44,41 @@ gss_workflow
 ```
 
 Now, we can begin to specify our models for our model stack:
-```{r}
+```{r logreg, cache = TRUE}
 # Basic Logistic regression specification
 basic_logreg_spec <- logistic_reg() %>%
   set_engine("glm")
+
 # Add logistic regression to workflow
 basic_logreg_workflow <- gss_workflow %>%
   add_model(basic_logreg_spec)
-# Fit with our cross validation
+
+# Cross validation
 set.seed(13)
 basic_logreg_resamples <- fit_resamples(
   basic_logreg_workflow,
   resamples = folds,
   control = control_stack_resamples()
 )
+```
 
+```{r penlogreg, cache = TRUE}
 # Penalized Logistic regression specification
-logreg_spec <- logistic_reg(penalty = tune(), mixture = 1) %>%
+logreg_spec <- logistic_reg(penalty = tune(),
+                            mixture = tune()) %>%
   set_engine("glmnet")
+
 # add grid 
-lr_reg_grid <- tibble(penalty = 10^seq(-4, -1, length.out = 30))
+lr_reg_grid <- tidyr::crossing(
+  penalty = 10 ^ seq(-6, -1, length.out = 20),
+  mixture = c(0.05, 0.2, 0.4, 0.6, 0.8, 1)
+) 
+
 # Add logistic regression to workflow
 logreg_workflow <- gss_workflow %>%
   add_model(logreg_spec)
-# Fit with our cross validation
+
+# Tuning hyperparameters
 set.seed(13)
 logreg_resamples <- tune_grid(
   logreg_workflow,
@@ -75,13 +86,17 @@ logreg_resamples <- tune_grid(
   grid = lr_reg_grid,
   control = control_stack_grid()
 )
+```
 
+```{r lda, cache = TRUE}
 # LDA specification
 lda_spec <- discrim_linear(penalty = tune()) %>%
   set_engine("mda")
+
 # Add LDA to workflow
 lda_workflow <- gss_workflow %>%
   add_model(lda_spec)
+
 # Fit with our cross validation
 set.seed(13)
 lda_resamples <- tune_grid(
@@ -89,16 +104,18 @@ lda_resamples <- tune_grid(
   resamples = folds,
   control = control_stack_grid()
 )
+```
 
+```{r svm, cache = TRUE}
 # SVM specification (ooh fancy)
 svm_spec <- svm_rbf(
     cost = tune(), 
     rbf_sigma = tune()
   ) %>%
-  set_engine("kernlab") %>%
-  set_mode("classification")
+  set_mode("classification") %>%
+  set_engine("kernlab")
 
-# WF
+# workflow
 svm_workflow <- 
   gss_workflow %>% 
   add_model(svm_spec)
@@ -109,25 +126,81 @@ svm_res <-
   tune_grid(
     svm_workflow, 
     resamples = folds, 
-    grid = 5,
+    grid = 3,
     control = control_stack_grid()
   )
 ```
 
-Now, we can stack these models:
+```{r rf, cache = TRUE}
+# Specify random forest
+rf_spec <- rand_forest(mtry = tune(),
+                       min_n = tune(),
+                       trees = 1000) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+# Workflow
+rf_workflow <- 
+  gss_workflow %>% 
+  add_model(rf_spec)
+
+# tuning
+set.seed(13)
+rf_res <- 
+  tune_grid(
+    rf_workflow, 
+    resamples = folds, 
+    grid = 3,
+    control = control_stack_grid()
+  )
+```
+
 ```{r}
+knn_spec <- nearest_neighbor(neighbors = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("kknn")
+
+knn_wf <- gss_workflow %>%
+  add_model(knn_spec)
+
+# tuning
+set.seed(13)
+knn_res <- 
+  tune_grid(
+    knn_wf, 
+    resamples = folds, 
+    control = control_stack_grid()
+  )
+```
+
+
+
+Now, we can stack these models:
+```{r, cache = TRUE}
 gss_stack <- stacks() %>%
   add_candidates(basic_logreg_resamples) %>%
   add_candidates(logreg_resamples) %>%
   add_candidates(lda_resamples) %>%
-  add_candidates(svm_res)
+  add_candidates(svm_res) %>%
+  add_candidates(rf_res) %>%
+  add_candidates(knn_res)
 
+gss_stack
+```
+
+```{r, cache = TRUE}
 gss_stack <- gss_stack %>%
   blend_predictions()
+```
 
+```{r, cache = TRUE}
 gss_stack <- gss_stack %>%
   fit_members()
 
+gss_stack
+```
+
+```{r}
 gss_preds <- 
   gss_test %>%
   dplyr::select(partyid) %>%
@@ -153,7 +226,7 @@ colnames(gss_preds) %>%
 
 
 For a base-line, let's fit a simple logistic regression:
-```{r eval = F}
+```{r}
 glm_logreg <- glm(partyid ~ ., data = gss_train, family = "binomial")
 probs_logreg <- predict(glm_logreg, gss_test, type = "response")
 preds_logreg <- ifelse(probs_logreg >=.5, 1, 0)
