@@ -1,8 +1,7 @@
 ---
 title: "Survey"
-author: "Shisham Adhikari"
 date: "12/3/2020"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -55,8 +54,7 @@ gss_survey <- gss_orig %>%
   drop_na()
 ```
 
-
-Now, we can do a logistic regression using weights:
+Now, we construct a complex sample survey design. 
 ```{r}
 library(survey)
 gss_design <- 
@@ -70,9 +68,7 @@ gss_design <-
 ```
 
 
-Now, we fit the logistic-regression model with the svyglm() function from the survey package.6 A
-slight wrinkle is that we must use the quasibinomial rather than the binomial family to avoid a
-warning about noninteger counts produced by the use of differential sampling weights. 
+Now, we fit the logistic-regression model with weights using the svyglm() function from the survey package. A slight wrinkle is that we must use the quasibinomial rather than the binomial family to avoid a warning about noninteger counts produced by the use of differential sampling weights. 
 
 ```{r}
  options(survey.lonely.psu="certainty")
@@ -98,4 +94,6 @@ false_neg_survey <- conf_log[2,1]
 error_survey <- 1/n *(false_pos + false_neg)
 error_survey
 ```
+We see that the error rate is 0.1810345 for the logistic regression with weights. 
+
 
