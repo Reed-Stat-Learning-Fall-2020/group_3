@@ -1,0 +1,51 @@
+---
+title: "Survey Analysis"
+author: "Shisham Adhikari"
+date: "12/2/2020"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(lodown)
+lodown( "gss" , output_dir = file.path( path.expand( "~" ) , "GSS" ) )
+```
+```{r, cache=T}
+library(survey)
+gss_files <-
+    list.files(
+        file.path( path.expand( "~" ) , "GSS" ) ,
+        full.names = TRUE 
+    )
+gss_rds <-
+    grep( 
+        "cross sectional cumulative(.*)([0-9][0-9][0-9][0-9])\\.rds$" , 
+        gss_files , 
+        value = TRUE 
+    )
+gss_df <- readRDS( gss_rds )
+# keep only the variables you need
+keep_vars <- 
+    c( "vpsu" , "vstrat" , "compwt" , "polviews" , 
+        "born" , "adults" , "hompop" , "race" , "year" ,
+        "age" , "sex" , "wrkgovt" )
+gss_df <- gss_df[ keep_vars ] ; gc()
+# this step conserves RAM
+# https://gssdataexplorer.norc.org/pages/show?page=gss%2Fstandard_error
+gss_design <- 
+    svydesign( 
+        ~ vpsu , 
+        strata = ~ vstrat , 
+        data = gss_df , 
+        weights = ~ wtssall , 
+        nest = TRUE 
+    )
+```
+```{r}
+glm_result <- 
+    svyglm( 
+        partyid ~ race + age + year + hompop + income + wrkgovt , 
+        gss_design 
+    )
+```
