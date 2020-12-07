@@ -82,6 +82,7 @@ gss_subset <- gss_orig %>%
 ```{r actually_load_gss, echo = FALSE}
 # run this chunk to quickly load the gss subset without having to re-run the filtering
 load("gss/gss_subset.rda")
+gss_subset$partyid <- factor(gss_subset$partyid)
 ```
 
 Given our goal to understand which factors influence party affiliation in the US, we selected `year` (year of the election), `age` (age of time of survey), `college` (degree or no degree), `partyid` (democrat or republican), `hompop` (number of people in the respondent's household), `hours` (number of hours worked in the last week), `income` (total family income, categorical), `class` (socioeconomic class as described by respondent), `finrela` (respondent's opinion on family's income level), `wrkgovt` (whether or not the respondent works for the government), `marital` (respondent's martial status), `educ` (highest year of school completed), `race` (race of respondent), `income16` (respondent's family income at the age of 16), and `weight` (survey weight). 
@@ -262,8 +263,8 @@ ggplot(gss_subset, aes(x = as.numeric(educ),
 
 After completing these exploratory analyses, it is clear that while there are some weak relationships within many variables, we will likely need all of these variables to make models which have good predictive power. None of the predictors appear to have an extremely strong relationship with political party affiliation, and so we will need to use many of them for our models to perform well. 
 
-We also examined two classification model methods for accuracy in predicting partyid based on some of our 16 predictors. Linear disriminany analysis (LDA) appeare to perform better job correctly classifying Democrats than Republicans based on these 6 predictors, as there was an equal amount of Republicans incorrectly predicted to those correctly predicted. Our logistic regression model with all 16 predictors also appears to better classify Democrats than Republicans, but not by much, with an overall training error rate of about 18%. These results suggest that the current classification models we have used throughout this course may not be successful in predicting partyid with high accuracy on their own. We hope to leverage these methods through model stacking in our Methods and Results section.
-```{r, echo = F}
+We also examined two classification model methods for accuracy in predicting `partyid` based on some of our 16 predictors. Linear discriminant analysis (LDA) appear to perform better job correctly classifying Democrats than Republicans based on these 6 predictors, as there was an equal amount of Republicans incorrectly predicted to those correctly predicted. Our logistic regression model with all 16 predictors also appears to better classify Democrats than Republicans, but not by much, with an overall training error rate of about 32%. These results suggest that the current classification models we have used throughout this course may not be successful in predicting `partyid` with high accuracy on their own. We hope to leverage these methods through model stacking in our Methods and Results section.
+```{r, echo = F, include = F}
 #taking a look at how LDA could perform on our dataset with just a couple of variables 
 library(MASS)
 set.seed(2020)
@@ -272,12 +273,13 @@ mlda_pred <- predict(mlda)
 conf_mlda <- table(mlda_pred$class,gss_subset$partyid)
 conf_mlda
 
+
 #taking a look at how logistic regression could perform on our dataset with just a couple of variables and then full model 
 simple_logreg<-glm(partyid ~ race + age + year + hompop + income + wrkgovt, data = gss_subset, family= "binomial")
-summary(simple_logreg)
+# summary(simple_logreg)
 
 full_logreg<-glm(partyid ~ ., data = gss_subset, family= "binomial")
-summary(full_logreg)
+# summary(full_logreg)
 
 probs<-predict(full_logreg, gss_subset, type = "response")
 preds<-ifelse(probs >=.5, 1, 0)
@@ -298,11 +300,66 @@ error
 
 ## Model Stacking with `tidymodels`
 
-Our second approach to  
+Our second approach to this classification problem was by using packages from the `tidymodels`, and aggregating their results with the `stacks` package (also part of the `tidymodels`.) This approach allowed us to combine the power of many of the models learned in our course and implement them with convenient syntax. The models we specified included: logistic regression, penalized logistic regression, linear discriminant analysis, random forests, and K nearest neighbors. Model stacking, unlike many other ensembling methods, relies on the fact that the models used in the stack have heterogeneous types, so we specified many different types of models. 
+
+In ordered to create our ensemble we created many models for each model type, by using 5-fold cross validation and tuning methods. We then used `stacks` to see how well each model performs on our test set and it automatically chooses which models to include in the final stack. `stacks` then assigns weights to each model and aggregates the output. 
+
+We specified our models for the stack like this:
+```{r example_model, eval = FALSE}
+# Specify random forest
+rf_spec <- rand_forest(mtry = tune(),
+                       min_n = tune(),
+                       trees = 1000) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+# Workflow
+rf_workflow <- 
+  gss_workflow %>% 
+  add_model(rf_spec)
+
+# Tuning
+set.seed(13)
+rf_res <- 
+  tune_grid(
+    rf_workflow, 
+    resamples = folds, 
+    grid = 3,
+    control = control_stack_grid()
+  )
+```
+This is an example of a random forest that we specified for our model stack, and since we used `tidymodels`, all of our other models used very similar syntax. This allowed us to specify many models very quickly and efficiently. 
+
+We initialize our model stack with 88 models: 
+```{r, echo = FALSE}
+library(stacks)
+bop <- readRDS("stacks_objects/initial_stack.rds")
+bop
+```
+
+Next, we blended our predictions and the model stack retained 11 models, here are the top ten weighted models. Interestingly, the top three models were (penalized) logistic regression models, indicating that overall logistic regression did a very good job at predicting party affiliation.
+```{r, echo = FALSE}
+boop <- readRDS("stacks_objects/blended.rds")
+boop
+```
+Finally, we can see our results. Notably, one member, a random forest, performed slightly better than the overall stack. This is not to say that the random forest is actually better than the model stack though, as since the model stack is aggregating models, it has quite low variance. 
+```{r, echo = FALSE}
+dat <- readRDS("stacks_objects/final_df.rds")
+dat$member <- c("Model Stack",
+                rep("Penalized Logistic Regression", 7),
+                "LDA", "LDA",
+                "Random Forest", "Random Forest")
+dat %>%
+  knitr::kable()
+```
+Overall, the model stack did quite well, performing over 1% better than the logistic regression model fit in our first section. 
+
+
+
 
 # Discussion
 
-Our results demonstrate that social predictors vary higly in predicting party affiliation. The relationship between these cultural and social factors of citizens identities and major political party affiliation remains complicated, as many previous studies have shown. While our ability to predict party affiliation remains limited as a result of study, our understanding of how model stacking can improve these predictions has improved. From applying simple classification models like logistic regression and QDA to utilizing the `survey` package to predict party affiliation, `stacks` performed competitively, though always supreme. Leveraging and aggregating all of these approaches through model stacking has clearly been demonstrated its ability to improve performance under variable conditions. 
+Our results demonstrate that social predictors vary highly in predicting party affiliation. The relationship between these cultural and social factors of citizens identities and major political party affiliation remains complicated, as many previous studies have shown. While our ability to predict party affiliation remains limited as a result of study, our understanding of how model stacking can improve these predictions has improved. From applying simple classification models like logistic regression and QDA to utilizing the `survey` package to predict party affiliation, `stacks` performed competitively, though always supreme. Leveraging and aggregating all of these approaches through model stacking has clearly been demonstrated its ability to improve performance under variable conditions. 
 
 
 

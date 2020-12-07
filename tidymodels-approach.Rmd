@@ -106,31 +106,6 @@ lda_resamples <- tune_grid(
 )
 ```
 
-```{r svm, cache = TRUE}
-# SVM specification (ooh fancy)
-svm_spec <- svm_rbf(
-    cost = tune(), 
-    rbf_sigma = tune()
-  ) %>%
-  set_mode("classification") %>%
-  set_engine("kernlab")
-
-# workflow
-svm_workflow <- 
-  gss_workflow %>% 
-  add_model(svm_spec)
-
-# tuning
-set.seed(13)
-svm_res <- 
-  tune_grid(
-    svm_workflow, 
-    resamples = folds, 
-    grid = 3,
-    control = control_stack_grid()
-  )
-```
-
 ```{r rf, cache = TRUE}
 # Specify random forest
 rf_spec <- rand_forest(mtry = tune(),
@@ -177,27 +152,26 @@ knn_res <-
 
 Now, we can stack these models:
 ```{r, cache = TRUE}
-gss_stack <- stacks() %>%
+gss_stack1 <- stacks() %>%
   add_candidates(basic_logreg_resamples) %>%
   add_candidates(logreg_resamples) %>%
   add_candidates(lda_resamples) %>%
-  add_candidates(svm_res) %>%
   add_candidates(rf_res) %>%
   add_candidates(knn_res)
 
-gss_stack
+gss_stack1
 ```
 
 ```{r, cache = TRUE}
-gss_stack <- gss_stack %>%
+gss_stack2 <- gss_stack1 %>%
   blend_predictions()
+gss_stack2
 ```
 
 ```{r, cache = TRUE}
-gss_stack <- gss_stack %>%
+gss_stack3 <- gss_stack2 %>%
   fit_members()
-
-gss_stack
+gss_stack3
 ```
 
 ```{r}
@@ -206,7 +180,7 @@ gss_preds <-
   dplyr::select(partyid) %>%
   bind_cols(
     predict(
-      gss_stack,
+      gss_stack3,
       gss_test,
       members = TRUE
     )
@@ -218,7 +192,11 @@ colnames(gss_preds) %>%
     truth = partyid, 
     data = gss_preds
   ) %>%
-  mutate(member = colnames(gss_preds))
+  mutate(member = colnames(gss_preds)) %>%
+  select(-.estimator) %>%
+  rename(metric = .metric,
+         estimate = .estimate) %>%
+  filter(estimate != 1)
 ```
 
 
