@@ -24,7 +24,7 @@ In 2000, the race between Governor George W. Bush vs. Vice President Al Gore  fo
 
 For the fifth time in US history, the 2016 race between businessman Donald J. Trump and former Secretary of State Hilary Clinton was also decided by the electoral college and not the popular vote. Less contentious than the 2000 election, the results of the 2016 election have been attributed to a lack of concern for winning electoral votes in key swing states. As these highly influential and dynamic "swing states" shift with each passing election, a better of understanding and prediction of their political party tendencies becomes increasing important. To better understand how external factors drive political party affiliation and ultimately predict political party affiliation, we are interested using techniques that combine many model types to provide more accurate conclusions.
 
-Previous models have utilized one statistical learning method: Principal Component Analysis (Newman and Sheth 1985), LASSO (Kristensen et al. 2017), and multiple linear regression (Ben-Bassat et al. 2009) when attempting understand how social attributes influence party affiliation or election outcome. While these models have demonstrated that social behavior, like a single Facebook like can predict party affiliation (Kristensen et al 2017) and identity, like Arab voter turnout and political affinity is Israeli elections (Ben-Bassat et al. 2009), they do not explain the trend towards  polarization in last decade of American elections, domestically or globally. Thus, to better understand this phenomenon, we asked the question: How can we use a combination of models to predict political party affiliation using small sample sizes? Our group wishes to understand the external factors related to political party affiilation, and to understand how well we can predict political party affiliation by using a combination of the modeling techniques learned in class. Model stacking is an ensemble method that combines a variety of model types to optimize model predictions by training the model with a variety of model types.
+Previous models have utilized one statistical learning method: Principal Component Analysis [@newman1985], LASSO [@kristensen2017], and multiple linear regression [@benbassat2012] when attempting understand how social attributes influence party affiliation or election outcome. While these models have demonstrated that social behavior, like a single Facebook like can predict party affiliation [@kristensen2017] and identity, like Arab voter turnout and political affinity is Israeli elections [@benbassat2012], they do not explain the trend towards  polarization in last decade of American elections, domestically or globally. Thus, to better understand this phenomenon, we asked the question: How can we use a combination of models to predict political party affiliation using small sample sizes? Our group wishes to understand the external factors related to political party affiilation, and to understand how well we can predict political party affiliation by using a combination of the modeling techniques learned in class. Model stacking is an ensemble method that combines a variety of model types to optimize model predictions by training the model with a variety of model types.
 
 # Methods
 
@@ -361,11 +361,9 @@ Overall, the model stack did quite well, performing over 1% better than the logi
 
 Our results demonstrate that social predictors vary highly in predicting party affiliation. The relationship between these cultural and social factors of citizens identities and major political party affiliation remains complicated, as many previous studies have shown. While our ability to predict party affiliation remains limited as a result of study, our understanding of how model stacking can improve these predictions has improved. From applying simple classification models like logistic regression and QDA to utilizing the `survey` package to predict party affiliation, `stacks` performed competitively, though always supreme. Leveraging and aggregating all of these approaches through model stacking has clearly been demonstrated its ability to improve performance under variable conditions. 
 
-
-
-
 # Code Appendix
 
 
 
 # References
+@infer
