@@ -10,6 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(out.width = "75%")
 knitr::opts_chunk$set(fig.align = "center")
 library(tidyverse)
+library(survey)
+library(tidymodels)
 theme_set(theme_bw())
 ```
 # Abstract
@@ -39,8 +41,9 @@ Most of this filtering was done for the `infer` package `gss` dataset and can be
 load("gss/gss_orig.rda")
 gss_subset <- gss_orig %>%
   filter(!stringr::str_detect(sample, "blk oversamp")) %>% # this is for weighting
-  select(year, age, sex, college = degree, partyid, hompop, hours = hrs1, income,
-         class, finrela, wrkgovt, marital, educ, race, incom16, weight = wtssall) %>%
+  dplyr::select(year, age, sex, college = degree, partyid, hompop, hours = hrs1, income,
+         class, finrela, wrkgovt, marital, educ, race, incom16, weight = wtssall, vpsu, 
+         vstrat) %>%
   mutate_if(is.factor, ~ fct_collapse(., NULL = c("IAP", "NA", "iap", "na"))) %>%
   mutate(
     age = age %>%
@@ -79,6 +82,7 @@ gss_subset <- gss_orig %>%
   filter(partyid %in% c("dem", "rep")) %>%
   drop_na()
 ```
+
 ```{r actually_load_gss, echo = FALSE}
 # run this chunk to quickly load the gss subset without having to re-run the filtering
 load("gss/gss_subset.rda")
@@ -107,7 +111,7 @@ str(gss_subset)
 
 # Glimpse of dataset
 gss_subset %>%
-  select(-weight) %>%
+  dplyr::select(-weight) %>%
   rename(home = hompop, party = partyid) %>%
   head() %>%
   knitr::kable()
@@ -296,6 +300,131 @@ error
 # Results 
 
 ## Classical Approach for Survey Data
+```{r, include=FALSE}
+library(tidyverse)
+load("gss/gss_orig.rda")
+gss_survey <- gss_orig %>%
+  filter(!stringr::str_detect(sample, "blk oversamp")) %>% # this is for weighting
+  dplyr::select(vpsu, vstrat, year, age, sex, college = degree, partyid, hompop, hours = hrs1, income, class, finrela, wrkgovt, marital, educ, race, incom16, weight = wtssall) %>%
+  mutate_if(is.factor, ~ fct_collapse(., NULL = c("IAP", "NA", "iap", "na"))) %>%
+  mutate(
+    age = age %>%
+      fct_recode("89" = "89 or older",
+                 NULL = "DK") %>%
+      as.character() %>%
+      as.numeric(),
+    hompop = hompop %>%
+      fct_collapse(NULL = c("DK")) %>%
+      as.character() %>%
+      as.numeric(),
+    hours = hours %>%
+      fct_recode("89" = "89+ hrs",
+                 NULL = "DK") %>%
+      as.character() %>%
+      as.numeric(),
+    weight = weight %>%
+      as.character() %>%
+      as.numeric(),
+    partyid = fct_collapse(
+      partyid,
+      dem = c("strong democrat", "not str democrat"),
+      rep = c("strong republican", "not str republican"),
+      ind = c("ind,near dem", "independent", "ind,near rep"),
+      other = "other party"
+    ),
+    income = factor(income, ordered = TRUE),
+    college = fct_collapse(
+      college,
+      degree = c("junior college", "bachelor", "graduate"),
+      "no degree"  = c("lt high school", "high school"),
+      NULL = "dk"
+    )
+  ) %>%
+  filter(year >= 2000) %>%
+  filter(partyid %in% c("dem", "rep")) %>%
+  drop_na()
+gss_survey$partyid <- factor(gss_survey$partyid)
+```
+
+First, we construct a complex sample survey design. 
+```{r}
+library(survey)
+gss_design <- 
+    svydesign(~ vpsu , 
+        strata = ~ vstrat , 
+        data = gss_survey , 
+        weights = ~ weight , 
+        nest = TRUE)
+```
+
+Now, we fit the logistic-regression model with weights using the svyglm() function from the survey package. A slight wrinkle is that we must use the quasibinomial rather than the binomial family to avoid a warning about noninteger counts produced by the use of differential sampling weights. 
+
+```{r}
+ options(survey.lonely.psu="certainty")
+glm_result <- 
+    svyglm( 
+        partyid ~ age + sex + college + hompop + hours +
+          income + class + finrela + wrkgovt + marital +
+        educ + race + incom16 + weight, design=gss_design, family=quasibinomial)
+```
+
+Note: The global option,  options(survey.lonely.psu="fail"), makes it an error to have a stratum with a single, non-certainty PSU. Changing it to options(survey.lonely.psu="certainty"), single-PSU stratum makes no contribution to the variance (for multistage sampling it makes no contribution at that level of sampling). This is an alternative to specifying fpc, and is useful to run the regression without error.
+
+```{r}
+probs_survey<-predict(glm_result, gss_survey, type = "response")
+preds_survey<-ifelse(probs_survey >=.5, 1, 0)
+conf_log_survey <- table(preds_survey, gss_survey$partyid)
+conf_log_survey
+n <- length(gss_survey$partyid)
+false_pos_survey <- conf_log_survey[1,2]
+false_neg_survey <- conf_log_survey[2,1]
+error_survey <- 1/n *(false_pos_survey + false_neg_survey)
+error_survey
+1 - error_survey
+```
+We see that the training error rate is `r error_survey` for the logistic regression with weights. 
+
+## Training and Testing 
+
+To compare our result to the tidymodels approach, we must perform the same analysis with a training and testing set. We do so with the same initial split used in the tidymodels approach:
+```{r}
+set.seed(1)
+split <- initial_split(data = gss_survey, prop = 3/4)
+gss_train <- training(split)
+gss_test <- testing(split)
+
+gss_design_train <- 
+    svydesign( ~ vpsu , 
+        strata = ~ vstrat , 
+        data = gss_train , 
+        weights = ~ weight , 
+        nest = TRUE)
+```
+
+Now, we fit the logistic-regression model with weights using the svyglm() function to our training set. 
+```{r}
+ options(survey.lonely.psu="certainty")
+glm_result_train <- 
+    svyglm( partyid ~ age + sex + college + hompop + hours +
+          income + class + finrela + wrkgovt + marital +
+        educ + race + incom16 + weight, design=gss_design_train, family=quasibinomial)
+```
+
+Now, we see how our model performs on the test set and calculate the test error rate. 
+
+```{r}
+probs_survey_test <- predict(glm_result_train, gss_test, type = "response")
+preds_survey_test <- ifelse(probs_survey_test >=.5, 1, 0)
+conf_log_survey_test <- table(preds_survey_test, gss_test$partyid)
+conf_log_survey_test
+n_test <- length(gss_test$partyid)
+false_pos_survey_test <- conf_log_survey_test[1,2]
+false_neg_survey_test <- conf_log_survey_test[2,1]
+error_survey_test <- 1/n_test *(false_pos_survey_test + false_neg_survey_test)
+error_survey_test
+1 - error_survey_test
+```
+We see that the testing error rate is `r error_survey_test` for the logistic regression with weights and the amount correctly predicted is `r 1 - error_survey_test`. 
 
 
 ## Model Stacking with `tidymodels`
@@ -338,6 +467,7 @@ bop
 ```
 
 Next, we blended our predictions and the model stack retained 11 models, here are the top ten weighted models. Interestingly, the top three models were (penalized) logistic regression models, indicating that overall logistic regression did a very good job at predicting party affiliation.
+
 ```{r, echo = FALSE}
 boop <- readRDS("stacks_objects/blended.rds")
 boop
@@ -352,18 +482,14 @@ dat$member <- c("Model Stack",
 dat %>%
   knitr::kable()
 ```
+
 Overall, the model stack did quite well, performing over 1% better than the logistic regression model fit in our first section. 
-
-
-
 
 # Discussion
 
 Our results demonstrate that social predictors vary highly in predicting party affiliation. The relationship between these cultural and social factors of citizens identities and major political party affiliation remains complicated, as many previous studies have shown. While our ability to predict party affiliation remains limited as a result of study, our understanding of how model stacking can improve these predictions has improved. From applying simple classification models like logistic regression and QDA to utilizing the `survey` package to predict party affiliation, `stacks` performed competitively, though always supreme. Leveraging and aggregating all of these approaches through model stacking has clearly been demonstrated its ability to improve performance under variable conditions. 
 
 # Code Appendix
-
-
 
 # References
 @infer
