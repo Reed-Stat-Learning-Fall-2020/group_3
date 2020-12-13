@@ -33,7 +33,11 @@ Previous models have utilized one statistical learning method: Principal Compone
 
 ## The GSS dataset
 
-The general social survey (GSS) is a massive survey conducted of people within the United States since 1972. The GSS aims to get a representative sample of people in the United States and to understand information about them and how they feel about social and political issues. We have chosen some key variables collected from this survey, along with participants from 2000 or more recent, in order for us to attempt to classify political affiliation of participants. Our subset of the GSS dataset contains 5,800 rows, 16 columns, and 0 NA's.  
+The general social survey (GSS) is a massive survey conducted of people within the United States since 1972 by the National Opinion Research Center at the University of Chicago. The data collected survey includes both demographic information like age, race, gender etc. and respondents' opinions about various social and political issues like political affiliations, the state of race, government spending etc. This comprehensive survey is widely used by social scientists to see how the demographic factors interact with various beliefs. 
+
+The survey targets adults (18+) living in households in the United States. The GSS sample is drawn using an area probability design that randomly selects respondents in households across the US. Participation in the study is strictly voluntary but every respondent selected is crucial to the results. The survey is conducted face-to-face with an in-person interview by NORC at the University of Chicago. The survey was conducted every year from 1972 to 1994 (except in 1979, 1981, and 1992). Since 1994, it has been conducted every other year. It takes about 90 minutes to complete the main survey.  After the US Census, the GSS is the most frequently used dataset in the social sciences. The survey result is used by scientists, researchers, government officials, and students to better understand different aspects of the residents of the United States. 
+
+Since the GSS gives an extensive information about a representative sample of people in the United States, we chose this dataset for our research. We have chosen some key variables collected from this survey, along with participants from 2000 or more recent, in order for us to attempt to classify political affiliation of participants. We also removed all NAs which was total 9577 observations. Our final subset of the GSS dataset contains 5,800 rows, 16 columns, and 0 NA's. 
 
 ## Filtering
 
@@ -507,6 +511,12 @@ Overall, the model stack did quite well, performing over 1% better than the logi
 # Discussion
 
 Our results demonstrate that social predictors vary highly in predicting party affiliation. The relationship between these cultural and social factors of citizens identities and major political party affiliation remains complicated, as many previous studies have shown. While our ability to predict party affiliation remains limited as a result of study, our understanding of how model stacking can improve these predictions has improved. From applying simple classification models like logistic regression and QDA to utilizing the `survey` package to predict party affiliation, `stacks` performed competitively, though always supreme. Leveraging and aggregating all of these approaches through model stacking has clearly been demonstrated its ability to improve performance under variable conditions. 
+
+## Limitations of our project
+
+
+## Further Directions 
+
 
 # Code Appendix
 
