@@ -1,5 +1,5 @@
 ---
-title: "Technical Report"
+title: "Swing Stacks: Predicting political party affiliation using model stacking"
 author: "Shisham Adhikari, Maggie Slein, Grayson White"
 bibliography: references.bib
 output: pdf_document
@@ -41,55 +41,7 @@ Since the GSS gives an extensive information about a representative sample of pe
 
 ## Filtering
 
-Most of this filtering was done for the `infer` package `gss` dataset and can be attributed to authors of that package. We have included more rows and columns than that package, however, much initial tidying and subsetting can be attributed to them [@infer]. Below is the code adapted from the `infer` package to attain our dataset, `gss_subset`:
-```{r gss_filter, warning = FALSE, message = FALSE, eval = FALSE}
-#Load data
-load("gss/gss_orig.rda")
-#Appropriate filtering
-gss_subset <- gss_orig %>%
-  filter(!stringr::str_detect(sample, "blk oversamp")) %>% # this is for weighting
-  dplyr::select(year, age, sex, college = degree, partyid, hompop, hours = hrs1, income,
-         class, finrela, wrkgovt, marital, educ, race, incom16, weight = wtssall, vpsu, 
-         vstrat) %>%
-  mutate_if(is.factor, ~ fct_collapse(., NULL = c("IAP", "NA", "iap", "na"))) %>%
-  mutate(
-    age = age %>%
-      fct_recode("89" = "89 or older",
-                 NULL = "DK") %>%
-      as.character() %>%
-      as.numeric(),
-    hompop = hompop %>%
-      fct_collapse(NULL = c("DK")) %>%
-      as.character() %>%
-      as.numeric(),
-    hours = hours %>%
-      fct_recode("89" = "89+ hrs",
-                 NULL = "DK") %>%
-      as.character() %>%
-      as.numeric(),
-    weight = weight %>%
-      as.character() %>%
-      as.numeric(),
-    partyid = fct_collapse(
-      partyid,
-      dem = c("strong democrat", "not str democrat"),
-      rep = c("strong republican", "not str republican"),
-      ind = c("ind,near dem", "independent", "ind,near rep"),
-      other = "other party"
-    ),
-    income = factor(income, ordered = TRUE),
-    college = fct_collapse(
-      college,
-      degree = c("junior college", "bachelor", "graduate"),
-      "no degree"  = c("lt high school", "high school"),
-      NULL = "dk"
-    )
-  ) %>%
-  filter(year >= 2000) %>%
-  filter(partyid %in% c("dem", "rep")) %>%
-  drop_na()
-```
-
+Most of this filtering was done for the `infer` package `gss` dataset and can be attributed to authors of that package. We have included more rows and columns than that package, however, much initial tidying and subsetting can be attributed to them [@infer]. The Code Appendix includes the code adapted from the `infer` package to attain our dataset, `gss_subset`.
 ```{r actually_load_gss, echo = FALSE, warning = FALSE, message = FALSE}
 # run this chunk to quickly load the gss subset without having to re-run the filtering
 load("gss/gss_subset.rda")
@@ -102,20 +54,8 @@ We made some choices while filtering the dataset which will effect the final res
 
 # Exploratory Data Analysis
 
-Before we dig too deeply in to the dataset, it is important to understand its structure: 
-```{r, warning = FALSE, message = FALSE}
-# Number of rows
-nrow(gss_subset) 
-
-# Number of columns
-ncol(gss_subset) 
-
-# Response variable summary
-summary(gss_subset$partyid)
-
-# Data Structure
-str(gss_subset)
-
+Before we dig too deeply in to the dataset, it is important to understand its structure. We have 16 columns and 5800 rows (3316 democrats, 2484 republicans). Below is a glimpse of our dataset:
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
 # Glimpse of dataset
 gss_subset %>%
   dplyr::select(-weight) %>%
@@ -283,33 +223,6 @@ ggplot(gss_subset, aes(x = as.numeric(educ),
 After completing these exploratory analyses, it is clear that while there are some weak relationships within many variables, we will likely need all of these variables to make models which have good predictive power. None of the predictors appear to have an extremely strong relationship with political party affiliation, and so we will need to use many of them for our models to perform well. 
 
 We also examined two classification model methods for accuracy in predicting `partyid` based on some of our 16 predictors. Linear discriminant analysis (LDA) appear to perform better job correctly classifying Democrats than Republicans based on these 6 predictors, as there was an equal amount of Republicans incorrectly predicted to those correctly predicted. Our logistic regression model with all 16 predictors also appears to better classify Democrats than Republicans, but not by much, with an overall training error rate of about 32%. These results suggest that the current classification models we have used throughout this course may not be successful in predicting `partyid` with high accuracy on their own. We hope to leverage these methods through model stacking in our Methods and Results section.
-```{r, echo = F, include = F, warning = FALSE, message = FALSE}
-#taking a look at how LDA could perform on our dataset with just a couple of variables 
-set.seed(2020)
-mlda <- lda(partyid ~ race + age + year + hompop + income + wrkgovt, data = gss_subset)
-mlda_pred <- predict(mlda)
-conf_mlda <- table(mlda_pred$class,gss_subset$partyid)
-conf_mlda
-
-
-#taking a look at how logistic regression could perform on our dataset with just a couple of variables and then full model 
-simple_logreg<-glm(partyid ~ race + age + year + hompop + income + wrkgovt, data = gss_subset, family= "binomial")
-# summary(simple_logreg)
-
-full_logreg<-glm(partyid ~ ., data = gss_subset, family= "binomial")
-# summary(full_logreg)
-
-probs<-predict(full_logreg, gss_subset, type = "response")
-preds<-ifelse(probs >=.5, 1, 0)
-conf_log <- table(preds, gss_subset$partyid)
-conf_log
-
-n <- length(gss_subset$partyid)
-false_pos <- conf_log[1,2]
-false_neg <- conf_log[2,1]
-error <- 1/n *(false_pos + false_neg)
-error
-```
 
 # Results 
 
@@ -363,17 +276,19 @@ gss_survey$partyid <- factor(gss_survey$partyid)
 First, we construct a complex sample survey design. 
 ```{r, warning = FALSE, message = FALSE}
 #Creating survey design
-gss_design <- 
-    svydesign(~ vpsu , 
-        strata = ~ vstrat , 
-        data = gss_survey , 
-        weights = ~ weight , 
-        nest = TRUE)
+gss_design <-
+  svydesign(
+    ~ vpsu,
+    strata = ~ vstrat,
+    data = gss_survey,
+    weights = ~ weight,
+    nest = TRUE
+  )
 ```
 
-Now, we fit the logistic-regression model with weights using the svyglm() function from the survey package. A slight wrinkle is that we must use the quasibinomial rather than the binomial family to avoid a warning about noninteger counts produced by the use of differential sampling weights. 
+Now, we fit the logistic-regression model with weights using the `svyglm()` function from the `survey` package. A slight wrinkle is that we must use the quasibinomial rather than the binomial family to avoid a warning about noninteger counts produced by the use of differential sampling weights. 
 
-```{r, warning = FALSE, message = FALSE}
+```{r, warning = FALSE, message = FALSE, include = FALSE}
 # An alternative to specifying fpc, useful to run the regression without error
  options(survey.lonely.psu="certainty")
 
@@ -385,9 +300,7 @@ glm_result <-
         educ + race + incom16 + weight, design=gss_design, family=quasibinomial)
 ```
 
-Note: The global option, options(survey.lonely.psu="fail"), makes it an error to have a stratum with a single, non-certainty PSU. Changing it to options(survey.lonely.psu="certainty"), single-PSU stratum makes no contribution to the variance (for multistage sampling it makes no contribution at that level of sampling). This is an alternative to specifying fpc, and is useful to run the regression without error.
-
-```{r, warning = FALSE, message = FALSE}
+```{r, warning = FALSE, message = FALSE, include = FALSE}
 # Calculation of the training error rate
 probs_survey<-predict(glm_result, gss_survey, type = "response")
 preds_survey<-ifelse(probs_survey >=.5, 1, 0)
@@ -400,19 +313,19 @@ error_survey <- 1/n *(false_pos_survey + false_neg_survey)
 error_survey
 1 - error_survey
 ```
-We see that the training error rate is `r error_survey` for the logistic regression with weights. 
+After performing the appropiate calculations, we see that the training error rate is `r error_survey` for the logistic regression with weights. 
 
-## Training and Testing 
+### Training and Testing 
 
 To compare our result to the tidymodels approach, we must perform the same analysis with a training and testing set. We do so with the same initial split used in the tidymodels approach:
 ```{r, warning = FALSE, message = FALSE}
-#Set-up to calculate the test error rate
+# Set-up to calculate the test error rate
 set.seed(1)
 split <- initial_split(data = gss_survey, prop = 3/4)
 gss_train <- training(split)
 gss_test <- testing(split)
 
-#A complex survey design based on the training data
+# A complex survey design based on the training data
 gss_design_train <- 
     svydesign( ~ vpsu , 
         strata = ~ vstrat , 
@@ -421,8 +334,8 @@ gss_design_train <-
         nest = TRUE)
 ```
 
-Now, we fit the logistic-regression model with weights using the svyglm() function to our training set. 
-```{r, warning = FALSE, message = FALSE}
+
+```{r, warning = FALSE, message = FALSE, include = FALSE}
  options(survey.lonely.psu="certainty")
 
 # Fit a logistic-regression model on the training data
@@ -432,9 +345,7 @@ glm_result_train <-
         educ + race + incom16 + weight, design=gss_design_train, family=quasibinomial)
 ```
 
-Now, we see how our model performs on the test set and calculate the test error rate. 
-
-```{r, warning = FALSE, message = FALSE}
+```{r, warning = FALSE, message = FALSE, include = FALSE}
 #Calculation of the test error rate
 probs_survey_test <- predict(glm_result_train, gss_test, type = "response")
 preds_survey_test <- ifelse(probs_survey_test >=.5, 1, 0)
@@ -447,7 +358,8 @@ error_survey_test <- 1/n_test *(false_pos_survey_test + false_neg_survey_test)
 error_survey_test
 1 - error_survey_test
 ```
-We see that the testing error rate is `r error_survey_test` for the logistic regression with weights and the amount correctly predicted is `r 1 - error_survey_test`. 
+
+Now, we fit the logistic-regression model with weights using the svyglm() function to our training set and see how our model performs on the test set by calculating the test error rate. The testing error rate is `r error_survey_test` for the logistic regression with weights and the amount correctly predicted is `r 1 - error_survey_test`. 
 
 
 ## Model Stacking with `tidymodels`
@@ -520,5 +432,351 @@ Our results demonstrate that social predictors vary highly in predicting party a
 
 # Code Appendix
 
+## Data loading and filtering
+
+```{r gss_filter, warning = FALSE, message = FALSE, eval = FALSE}
+#Load data
+load("gss/gss_orig.rda")
+#Appropriate filtering
+gss_subset <- gss_orig %>%
+  filter(!stringr::str_detect(sample, "blk oversamp")) %>% # this is for weighting
+  dplyr::select(year, age, sex, college = degree, partyid, hompop, hours = hrs1, income,
+         class, finrela, wrkgovt, marital, educ, race, incom16, weight = wtssall, vpsu, 
+         vstrat) %>%
+  mutate_if(is.factor, ~ fct_collapse(., NULL = c("IAP", "NA", "iap", "na"))) %>%
+  mutate(
+    age = age %>%
+      fct_recode("89" = "89 or older",
+                 NULL = "DK") %>%
+      as.character() %>%
+      as.numeric(),
+    hompop = hompop %>%
+      fct_collapse(NULL = c("DK")) %>%
+      as.character() %>%
+      as.numeric(),
+    hours = hours %>%
+      fct_recode("89" = "89+ hrs",
+                 NULL = "DK") %>%
+      as.character() %>%
+      as.numeric(),
+    weight = weight %>%
+      as.character() %>%
+      as.numeric(),
+    partyid = fct_collapse(
+      partyid,
+      dem = c("strong democrat", "not str democrat"),
+      rep = c("strong republican", "not str republican"),
+      ind = c("ind,near dem", "independent", "ind,near rep"),
+      other = "other party"
+    ),
+    income = factor(income, ordered = TRUE),
+    college = fct_collapse(
+      college,
+      degree = c("junior college", "bachelor", "graduate"),
+      "no degree"  = c("lt high school", "high school"),
+      NULL = "dk"
+    )
+  ) %>%
+  filter(year >= 2000) %>%
+  filter(partyid %in% c("dem", "rep")) %>%
+  drop_na()
+```
+
+```{r data_structure, eval = FALSE, warning = FALSE, message = FALSE}
+# Number of rows
+nrow(gss_subset) 
+
+# Number of columns
+ncol(gss_subset) 
+
+# Response variable summary
+summary(gss_subset$partyid)
+
+# Data Structure
+str(gss_subset)
+```
+
+## Some basic models
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+#taking a look at how LDA could perform on our dataset with just a couple of variables 
+set.seed(2020)
+mlda <- lda(partyid ~ race + age + year + hompop + income + wrkgovt, data = gss_subset)
+mlda_pred <- predict(mlda)
+conf_mlda <- table(mlda_pred$class,gss_subset$partyid)
+conf_mlda
+
+
+#taking a look at how logistic regression could perform on our dataset
+# with just a couple of variables and then full model 
+simple_logreg <- glm(partyid ~ race + age + year + hompop +
+                     income + wrkgovt, data = gss_subset, family= "binomial")
+summary(simple_logreg)
+
+full_logreg <- glm(partyid ~ ., data = gss_subset, family= "binomial")
+summary(full_logreg)
+
+probs<-predict(full_logreg, gss_subset, type = "response")
+preds<-ifelse(probs >=.5, 1, 0)
+conf_log <- table(preds, gss_subset$partyid)
+conf_log
+
+n <- length(gss_subset$partyid)
+false_pos <- conf_log[1,2]
+false_neg <- conf_log[2,1]
+error <- 1/n *(false_pos + false_neg)
+error
+```
+
+## The survey regression
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+# An alternative to specifying fpc, useful to run the regression without error
+ options(survey.lonely.psu="certainty")
+
+# Fit a logistic-regression model based on the complex survey design
+glm_result <- 
+    svyglm( 
+        partyid ~ age + sex + college + hompop + hours +
+          income + class + finrela + wrkgovt + marital +
+        educ + race + incom16 + weight, design=gss_design, family=quasibinomial)
+```
+
+Note: The global option, options(survey.lonely.psu="fail"), makes it an error to have a stratum with a single, non-certainty PSU. Changing it to options(survey.lonely.psu="certainty"), single-PSU stratum makes no contribution to the variance (for multistage sampling it makes no contribution at that level of sampling). This is an alternative to specifying fpc, and is useful to run the regression without error.
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+# An alternative to specifying fpc, useful to run the regression without error
+ options(survey.lonely.psu="certainty")
+
+# Fit a logistic-regression model based on the complex survey design
+glm_result <- 
+    svyglm( 
+        partyid ~ age + sex + college + hompop + hours +
+          income + class + finrela + wrkgovt + marital +
+        educ + race + incom16 + weight, design=gss_design, family=quasibinomial)
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+# Calculation of the training error rate
+probs_survey<-predict(glm_result, gss_survey, type = "response")
+preds_survey<-ifelse(probs_survey >=.5, 1, 0)
+conf_log_survey <- table(preds_survey, gss_survey$partyid)
+conf_log_survey
+n <- length(gss_survey$partyid)
+false_pos_survey <- conf_log_survey[1,2]
+false_neg_survey <- conf_log_survey[2,1]
+error_survey <- 1/n *(false_pos_survey + false_neg_survey)
+error_survey
+1 - error_survey
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+ options(survey.lonely.psu="certainty")
+
+# Fit a logistic-regression model on the training data
+glm_result_train <- 
+    svyglm( partyid ~ age + sex + college + hompop + hours +
+          income + class + finrela + wrkgovt + marital +
+        educ + race + incom16 + weight, design=gss_design_train, family=quasibinomial)
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+#Calculation of the test error rate
+probs_survey_test <- predict(glm_result_train, gss_test, type = "response")
+preds_survey_test <- ifelse(probs_survey_test >=.5, 1, 0)
+conf_log_survey_test <- table(preds_survey_test, gss_test$partyid)
+conf_log_survey_test
+n_test <- length(gss_test$partyid)
+false_pos_survey_test <- conf_log_survey_test[1,2]
+false_neg_survey_test <- conf_log_survey_test[2,1]
+error_survey_test <- 1/n_test *(false_pos_survey_test + false_neg_survey_test)
+error_survey_test
+1 - error_survey_test
+```
+
+## The model stacking
+
+Let's first split our data into training and testing datasets:
+```{r, warning = FALSE, message = FALSE, eval = F}
+set.seed(1)
+split <- initial_split(data = gss_subset, prop = 3/4)
+gss_train <- training(split)
+gss_test <- testing(split)
+```
+
+Next, let's use 5-fold cross validation:
+```{r, warning = FALSE, message = FALSE, eval = F}
+folds <- rsample::vfold_cv(gss_train, v = 5)
+```
+
+Now, let's make our `recipe()` and `workflow()` that will be used for each of our models:
+```{r, warning = FALSE, message = FALSE, eval = F}
+# Create the recipe
+gss_recipe <- recipe(partyid ~ ., data = gss_train) %>%
+  step_rm(year) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_predictors())
+
+# Create the workflow
+gss_workflow <- workflow() %>%
+  add_recipe(gss_recipe)
+
+# View the workflow
+gss_workflow
+```
+
+Now, we can begin to specify our models for our model stack:
+```{r, warning = FALSE, message = FALSE, eval = F}
+# Basic Logistic regression specification
+basic_logreg_spec <- logistic_reg() %>%
+  set_engine("glm")
+
+# Add logistic regression to workflow
+basic_logreg_workflow <- gss_workflow %>%
+  add_model(basic_logreg_spec)
+
+# Cross validation
+set.seed(13)
+basic_logreg_resamples <- fit_resamples(
+  basic_logreg_workflow,
+  resamples = folds,
+  control = control_stack_resamples()
+)
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+# Penalized Logistic regression specification
+logreg_spec <- logistic_reg(penalty = tune(),
+                            mixture = tune()) %>%
+  set_engine("glmnet")
+
+# add grid 
+lr_reg_grid <- tidyr::crossing(
+  penalty = 10 ^ seq(-6, -1, length.out = 20),
+  mixture = c(0.05, 0.2, 0.4, 0.6, 0.8, 1)
+) 
+
+# Add logistic regression to workflow
+logreg_workflow <- gss_workflow %>%
+  add_model(logreg_spec)
+
+# Tuning hyperparameters
+set.seed(13)
+logreg_resamples <- tune_grid(
+  logreg_workflow,
+  resamples = folds,
+  grid = lr_reg_grid,
+  control = control_stack_grid()
+)
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+# LDA specification
+lda_spec <- discrim_linear(penalty = tune()) %>%
+  set_engine("mda")
+
+# Add LDA to workflow
+lda_workflow <- gss_workflow %>%
+  add_model(lda_spec)
+
+# Fit with our cross validation
+set.seed(13)
+lda_resamples <- tune_grid(
+  lda_workflow,
+  resamples = folds,
+  control = control_stack_grid()
+)
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+# Specify random forest
+rf_spec <- rand_forest(mtry = tune(),
+                       min_n = tune(),
+                       trees = 1000) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+# Workflow
+rf_workflow <- 
+  gss_workflow %>% 
+  add_model(rf_spec)
+
+# tuning
+set.seed(13)
+rf_res <- 
+  tune_grid(
+    rf_workflow, 
+    resamples = folds, 
+    grid = 3,
+    control = control_stack_grid()
+  )
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+knn_spec <- nearest_neighbor(neighbors = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("kknn")
+
+knn_wf <- gss_workflow %>%
+  add_model(knn_spec)
+
+# tuning
+set.seed(13)
+knn_res <- 
+  tune_grid(
+    knn_wf, 
+    resamples = folds, 
+    control = control_stack_grid()
+  )
+```
+
+Now, we can stack these models:
+```{r, warning = FALSE, message = FALSE, eval = F}
+gss_stack1 <- stacks() %>%
+  add_candidates(basic_logreg_resamples) %>%
+  add_candidates(logreg_resamples) %>%
+  add_candidates(lda_resamples) %>%
+  add_candidates(rf_res) %>%
+  add_candidates(knn_res)
+
+gss_stack1
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+gss_stack2 <- gss_stack1 %>%
+  blend_predictions()
+gss_stack2
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+gss_stack3 <- gss_stack2 %>%
+  fit_members()
+gss_stack3
+```
+
+```{r, warning = FALSE, message = FALSE, eval = F}
+gss_preds <- 
+  gss_test %>%
+  dplyr::select(partyid) %>%
+  bind_cols(
+    predict(
+      gss_stack3,
+      gss_test,
+      members = TRUE
+    )
+  )
+
+colnames(gss_preds) %>%
+  map_dfr(
+    .f = accuracy, 
+    truth = partyid, 
+    data = gss_preds
+  ) %>%
+  mutate(member = colnames(gss_preds)) %>%
+  select(-.estimator) %>%
+  rename(metric = .metric,
+         estimate = .estimate) %>%
+  filter(estimate != 1)
+```
+
 # References
-@infer
