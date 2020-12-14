@@ -7,7 +7,6 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_chunk$set(out.width = "75%")
 knitr::opts_chunk$set(fig.align = "center")
 library(tidyverse)
 library(survey)
@@ -65,7 +64,7 @@ gss_subset %>%
 ```
 
 As we first explore the dataset, we can look at the distribution of democrats and republications in our dataset in counts:
-```{r partyid-dist, echo = FALSE, warning = FALSE, message = FALSE}
+```{r partyid-dist, echo = FALSE, warning = FALSE, message = FALSE, out.width='50%'}
 #Party-wise counts 
 ggplot(gss_subset, aes(x = partyid)) +
   geom_bar(fill = c("steelblue", "tomato"),
@@ -76,7 +75,7 @@ ggplot(gss_subset, aes(x = partyid)) +
 There appears to me more democrats than republicans represented in this dataset, which could be because democrats are more likely to participate in this survey, or it could be that the way we selected our data systemically oversampled democrats. Notably from this, it is the case that our the weights associated with our sample of the GSS dataset would not be the same as the weights that the GSS uses for the dataset, so the `weight` variable should be ignored entirely. 
 
 Now, we can examine some of our predictor variables with our response, `partyid`, to see the relationships there are between variables. First, we see in this side-by-side boxplot with the means plotted on top that republicans tend to be older on average:
-```{r age-plot, echo = FALSE, warning = FALSE, message = FALSE}
+```{r age-plot, echo = FALSE, warning = FALSE, message = FALSE, out.width='50%'}
 #Exploring the relationship between political affiliation and age
 ggplot(gss_subset, aes(x = age,
                        y = partyid,
@@ -95,7 +94,7 @@ ggplot(gss_subset, aes(x = age,
 Next, it is interesting to consider economic status across political affiliations. By comparing political affiliation to income, class, and hours worked in the last week we can see small relationships between political affiliation and economic status:
 ```{r economic-status, echo = FALSE, warning = FALSE, message = FALSE}
 #Exploring the relationship between political affiliation and income
-ggplot(gss_subset, aes(x = income,
+p5 <- ggplot(gss_subset, aes(x = income,
                        y = partyid,
                        color = partyid)) +
   geom_jitter(alpha = 0.5) +
@@ -110,7 +109,7 @@ ggplot(gss_subset, aes(x = income,
   )
 
 #Exploring the relationship between political affiliation and class
-ggplot(gss_subset, aes(x = class,
+p6 <- ggplot(gss_subset, aes(x = class,
                        y = partyid,
                        color = partyid)) +
   geom_jitter(alpha = 0.3) +
@@ -125,7 +124,7 @@ ggplot(gss_subset, aes(x = class,
   )
 
 #Exploring the relationship between political affiliation and hours worked
-ggplot(gss_subset, aes(x = hours,
+p7 <- ggplot(gss_subset, aes(x = hours,
                        y = partyid,
                        color = partyid)) +
   geom_boxplot(alpha = 0.3) +
@@ -140,12 +139,14 @@ ggplot(gss_subset, aes(x = hours,
     color = "Political Affiliation"
   ) +
   stat_summary(fun = mean, size = 0.25)
+gridExtra::grid.arrange(p5, p6, p7, ncol = 2)
 ```
 
 It is also relevant to look at other variables such as race, marital status, and education as factors related to political party affiliation. Most notably, there is a much larger proportion of white republicans than democrats. We can see this in the first plot in the following plots: 
 ```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(patchwork)
 #Exploring the relationship between political affiliation and race
-ggplot(gss_subset, aes(x = race,
+p1 <- ggplot(gss_subset, aes(x = race,
                        y = partyid,
                        color = partyid)) +
   geom_jitter(alpha = 0.3) +
@@ -160,7 +161,7 @@ ggplot(gss_subset, aes(x = race,
   )
 
 #Exploring the relationship between political affiliation and marital status
-ggplot(gss_subset, aes(x = marital,
+p2 <- ggplot(gss_subset, aes(x = marital,
                        y = partyid,
                        color = partyid)) +
   geom_jitter(alpha = 0.3) +
@@ -179,7 +180,7 @@ reps <- gss_subset %>%
   filter(partyid == "rep")
 dems <- gss_subset %>%
   filter(partyid == "dem")
-ggplot() +
+p3 <- ggplot() +
   geom_point(reps,
              mapping = aes(x = marital,
                            y = age,
@@ -203,7 +204,7 @@ ggplot() +
   )
 
 #Exploring the relationship between political affiliation and education
-ggplot(gss_subset, aes(x = as.numeric(educ),
+p4 <- ggplot(gss_subset, aes(x = as.numeric(educ),
                        y = partyid,
                        color = partyid)) +
   geom_boxplot(alpha = 0.3)+
@@ -218,6 +219,8 @@ ggplot(gss_subset, aes(x = as.numeric(educ),
     color = "Political Affiliation"
   ) +
   stat_summary(fun = mean, size = 0.25)
+
+gridExtra::grid.arrange(p1, p2, p3, p4, ncol = 2)
 ```
 
 After completing these exploratory analyses, it is clear that while there are some weak relationships within many variables, we will likely need all of these variables to make models which have good predictive power. None of the predictors appear to have an extremely strong relationship with political party affiliation, and so we will need to use many of them for our models to perform well. 
