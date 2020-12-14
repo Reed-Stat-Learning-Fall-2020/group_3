@@ -1,5 +1,5 @@
 ---
-title: "Swing Stacks: Predicting Political Party Affiliation"
+title: "Swing Stacks: Predicting political party affiliation via model stacks"
 author: "Shisham Adhikari, Maggie Slein, Grayson White"
 bibliography: references.bib
 output: pdf_document
